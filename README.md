@@ -1,14 +1,14 @@
 # Authentik Setup Guide
-## Cross-Compatible: Portainer & Docker Compose CLI
+## Cross-Compatible: Dockhand & Docker Compose CLI
 
-This guide covers deploying Authentik using either Portainer or docker-compose CLI with the same files.
+This guide covers deploying Authentik using either Dockhand or docker-compose CLI with the same files.
 
 ---
 
 ## Key Improvements in This Setup
 
 ✅ **Named volumes** instead of relative paths (./media → authentik-media)
-✅ **Works in both Portainer and CLI** without modifications
+✅ **Works in both Dockhand and CLI** without modifications
 ✅ **Container names** for easier management
 ✅ **Default values** for optional variables
 ✅ **Clear environment variable structure**
@@ -19,13 +19,13 @@ This guide covers deploying Authentik using either Portainer or docker-compose C
 ## Prerequisites
 
 - Ubuntu 24.04 VM with Docker installed
-- Portainer (if using GUI method) OR terminal access for CLI method
+- Dockhand (if using GUI method) OR terminal access for CLI method
 - Nginx Proxy Manager with wildcard SSL certificate
 - Chosen subdomain (e.g., auth.yourdomain.com)
 
 ---
 
-## Method 1: Deploy with Portainer (GUI)
+## Method 1: Deploy with Dockhand (GUI)
 
 ### Step 1: Prepare Environment Variables
 
@@ -39,19 +39,18 @@ echo "PG_PASS=$(openssl rand -base64 36 | tr -d '\n')"
 echo "AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60 | tr -d '\n')"
 ```
 
-**Copy these values** - you'll need them in Portainer.
+**Copy these values** - you'll need them when creating the stack in Dockhand.
 
-### Step 2: Create Stack in Portainer
+### Step 2: Create Stack in Dockhand
 
-1. Log into Portainer
-2. Go to **Stacks** → **Add stack**
+1. Log into Dockhand
+2. Navigate to **Stacks** → **New Stack**
 3. Name: `authentik`
-4. Choose **Web editor**
-5. Paste the entire `docker-compose.yml` content
+4. Paste the entire `docker-compose.yml` content into the editor
 
 ### Step 3: Add Environment Variables
 
-Scroll to **Environment variables** section and add these:
+Add your environment variables in the stack configuration:
 
 **Required Variables:**
 ```
@@ -68,17 +67,19 @@ PG_DB=authentik
 
 **Optional Email Variables (if configuring email):**
 ```
-AUTHENTIK_EMAIL__HOST=smtp.gmail.com
+AUTHENTIK_EMAIL__HOST=smtp.fastmail.com
 AUTHENTIK_EMAIL__PORT=587
-AUTHENTIK_EMAIL__USERNAME=your-email@gmail.com
-AUTHENTIK_EMAIL__PASSWORD=your-app-password
+AUTHENTIK_EMAIL__USERNAME=your-email@fastmail.com
+AUTHENTIK_EMAIL__PASSWORD=your-fastmail-app-password
 AUTHENTIK_EMAIL__USE_TLS=true
 AUTHENTIK_EMAIL__FROM=authentik@yourdomain.com
 ```
 
+> **Fastmail note:** Use an app-specific password generated in Fastmail under **Settings → Privacy & Security → Connected Apps & API Tokens**. Do not use your main account password.
+
 ### Step 4: Deploy
 
-1. Click **Deploy the stack**
+1. Click **Deploy** (or equivalent in Dockhand)
 2. Wait 2-3 minutes for containers to start
 3. Check container logs for any errors
 4. Verify all 4 containers are running and healthy
@@ -116,7 +117,7 @@ echo "PG_DB=authentik" >> .env
 cat .env
 ```
 
-### Step 3: Optional Email Configuration
+### Step 3: Optional Email Configuration (Fastmail)
 
 If you want email functionality, add to your .env:
 
@@ -124,15 +125,17 @@ If you want email functionality, add to your .env:
 nano .env
 ```
 
-Add these lines (adjust for your provider):
+Add these lines:
 ```
-AUTHENTIK_EMAIL__HOST=smtp.gmail.com
+AUTHENTIK_EMAIL__HOST=smtp.fastmail.com
 AUTHENTIK_EMAIL__PORT=587
-AUTHENTIK_EMAIL__USERNAME=your-email@gmail.com
-AUTHENTIK_EMAIL__PASSWORD=your-app-password
+AUTHENTIK_EMAIL__USERNAME=your-email@fastmail.com
+AUTHENTIK_EMAIL__PASSWORD=your-fastmail-app-password
 AUTHENTIK_EMAIL__USE_TLS=true
 AUTHENTIK_EMAIL__FROM=authentik@yourdomain.com
 ```
+
+> **Fastmail note:** Generate an app-specific password under **Settings → Privacy & Security → Connected Apps & API Tokens**. Use that value for `AUTHENTIK_EMAIL__PASSWORD`, not your main account password. Port 587 with STARTTLS is recommended; port 465 with SSL/TLS is also supported — set `AUTHENTIK_EMAIL__USE_SSL=true` and `AUTHENTIK_EMAIL__PORT=465` if you prefer that.
 
 ### Step 4: Deploy
 
@@ -187,7 +190,7 @@ Click **Save** and wait 10-15 seconds.
 ## Initial Authentik Setup
 
 1. Navigate to: `https://auth.yourdomain.com/if/flow/initial-setup/`
-   
+
    ⚠️ **Important:** Include the trailing slash `/`
 
 2. Set password for the `akadmin` user
@@ -206,9 +209,9 @@ Click **Save** and wait 10-15 seconds.
 
 ### Check Container Status
 
-**Portainer Method:**
-- View in Portainer's Containers page
-- Check logs in Portainer UI
+**Dockhand Method:**
+- View container status and health in the Dockhand UI
+- Access container logs directly from the stack view
 
 **CLI Method:**
 ```bash
@@ -248,10 +251,10 @@ curl http://localhost:9000
 
 ## Container Management
 
-### Using Portainer:
-- Start/Stop/Restart: Use Portainer UI buttons
-- View logs: Click container → Logs
-- Console access: Click container → Console
+### Using Dockhand:
+- Start/Stop/Restart: Use the Dockhand stack/container controls
+- View logs: Navigate to the container and open its log view
+- Console access: Use the exec/console feature if available in your Dockhand version
 
 ### Using CLI:
 ```bash
@@ -351,6 +354,14 @@ docker exec authentik-server env | grep PG_PASS
 2. Containers are healthy: `docker-compose ps`
 3. No errors in logs: `docker-compose logs server`
 
+### Email Not Sending (Fastmail)
+
+**Check:**
+1. App-specific password is used — not your main Fastmail password
+2. `AUTHENTIK_EMAIL__USERNAME` matches your full Fastmail address (e.g., `user@fastmail.com`)
+3. Port 587 with `USE_TLS=true` is set (STARTTLS), or port 465 with `USE_SSL=true`
+4. Test from the Authentik Admin Interface under **System → Email**
+
 ---
 
 ## Security Recommendations
@@ -375,7 +386,7 @@ After Authentik is running:
 3. **Configure Flows** - Customize authentication flows
 4. **Add Sources** - Connect LDAP, OAuth providers, etc.
 5. **Set up Outposts** - For proxy/LDAP functionality
-6. **Test Email** - Verify email configuration works
+6. **Test Email** - Send a test email from Admin Interface → System → Email
 
 ---
 
