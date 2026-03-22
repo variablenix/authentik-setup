@@ -1,0 +1,154 @@
+# =============================================================================
+# Authentik docker-compose.yml
+# Based on: https://goauthentik.io/docker-compose.yml
+#
+# Changes from upstream:
+#   - Explicit container names for easier management
+#   - Resource limits (memory) on all services
+#   - Prometheus metrics ports exposed (9300 server, 9301 worker)
+#   - AUTHENTIK_CSRF_TRUSTED_ORIGINS for AWS Identity Center compatibility
+#   - Bind-mount paths for media/certs/templates (commented alternatives included)
+#   - shm_size set on server and worker
+#
+# AWS Identity Center note:
+#   AUTHENTIK_CSRF_TRUSTED_ORIGINS must include your AWS SSO sign-in URL
+#   for the region your Identity Center instance is configured in.
+#   Format: https://<region>.sso.signin.aws
+#   Example: https://us-east-1.sso.signin.aws
+#   Without this, SAML/OIDC flows initiated from AWS will fail with CSRF errors.
+# =============================================================================
+
+services:
+  postgresql:
+    image: docker.io/library/postgres:16-alpine
+    container_name: authentik-postgresql
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${PG_DB:-authentik}
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
+      POSTGRES_USER: ${PG_USER:-authentik}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - database:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  redis:
+    image: docker.io/library/redis:alpine
+    container_name: authentik-redis
+    restart: unless-stopped
+    command: --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - redis:/data
+
+  server:
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.1}
+    container_name: authentik-server
+    command: server
+    restart: unless-stopped
+    shm_size: 512mb
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_HOST: "https://auth.yourdomain.com"
+      AUTHENTIK_LISTEN__METRICS: 0.0.0.0:9300
+      # Required for AWS Identity Center (SSO) — include your AWS region endpoint
+      # Replace us-east-1 with your Identity Center region
+      AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://auth.yourdomain.com,https://us-east-1.sso.signin.aws"
+    ports:
+      - ${COMPOSE_PORT_HTTP:-9000}:9000
+      - ${COMPOSE_PORT_HTTPS:-9443}:9443
+      - "9300:9300"     # Prometheus — server metrics
+    volumes:
+      - ./media:/media
+      - ./custom-templates:/templates
+      - ./data:/data
+      # bind-mount alternative (persistent across container recreates):
+      #- /opt/authentik/media:/media
+      #- /opt/authentik/custom-templates:/templates
+      #- /opt/authentik/data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  worker:
+    image: ${AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server}:${AUTHENTIK_TAG:-2026.2.1}
+    container_name: authentik-worker
+    command: worker
+    restart: unless-stopped
+    shm_size: 512mb
+    user: root
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+      AUTHENTIK_HOST: "https://auth.yourdomain.com"
+      AUTHENTIK_LISTEN__METRICS: 0.0.0.0:9300
+      # Required for AWS Identity Center (SSO) — must match server service
+      AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://auth.yourdomain.com,https://us-east-1.sso.signin.aws"
+    ports:
+      - "9301:9300"     # Prometheus — worker metrics
+    volumes:
+      - ./media:/media
+      - ./certs:/certs
+      - ./custom-templates:/templates
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      # bind-mount alternative:
+      #- /opt/authentik/media:/media
+      #- /opt/authentik/certs:/certs
+      #- /opt/authentik/custom-templates:/templates
+      #- /opt/authentik/data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+        reservations:
+          memory: 512M
+
+volumes:
+  database:
+    driver: local
+  redis:
+    driver: local
