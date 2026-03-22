@@ -15,6 +15,85 @@ This guide covers deploying Authentik using either Dockhand or the Docker Compos
 
 ---
 
+## Installing Dockhand
+
+[Dockhand](https://dockhand.pro) is a modern Docker management UI — free for homelabs, with OIDC/SSO included at no cost. If you plan to use Method 1 (GUI deployment), install Dockhand first.
+
+### Option A: Docker Compose (recommended)
+
+```yaml
+# dockhand/docker-compose.yml
+services:
+  dockhand:
+    image: fnsys/dockhand:latest
+    container_name: dockhand
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dockhand_data:/app/data
+
+volumes:
+  dockhand_data:
+```
+
+```bash
+docker compose up -d
+```
+
+### Option B: Docker run (quick start)
+
+```bash
+docker run -d \
+  --name dockhand \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v dockhand_data:/app/data \
+  fnsys/dockhand:latest
+```
+
+### Option C: With PostgreSQL (multi-host / team use)
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dockhand
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: dockhand
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  dockhand:
+    image: fnsys/dockhand:latest
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      DATABASE_URL: postgres://dockhand:changeme@postgres:5432/dockhand
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - dockhand_data:/app/data
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  dockhand_data:
+```
+
+After deploying, open `http://localhost:3000` (or your VM's IP) to complete initial setup. Put it behind NPM with SSL for production use.
+
+> For managing Docker hosts behind NAT or a firewall, Dockhand uses the open-source [Hawser agent](https://github.com/Finsys/hawser) — see the [Dockhand docs](https://dockhand.pro/manual/) for multi-host setup.
+
+---
+
+---
+
 ## Method 1: Deploy with Dockhand (GUI)
 
 ### Step 1: Generate secrets
@@ -416,5 +495,5 @@ If variables are missing, confirm `.env` exists in the same directory as `docker
 - [Authentik Integrations](https://integrations.goauthentik.io/)
 - [Authentik GitHub](https://github.com/goauthentik/authentik)
 - [Authentik Discord](https://discord.gg/jg33eMhnj6)
-- [Dockhand](https://github.com/Finsys/dockhand)
+- [Dockhand](https://github.com/fnsys/dockhand)
 - [Nginx Proxy Manager](https://nginxproxymanager.com/)
