@@ -1,7 +1,7 @@
 # Authentik Setup Guide
 ## Cross-Compatible: Dockhand & Docker Compose CLI
 
-This guide covers deploying Authentik using either Dockhand or docker-compose CLI with the same files.
+This guide covers deploying Authentik using either Dockhand or docker compose CLI with the same files.
 
 ---
 
@@ -46,7 +46,7 @@ echo "AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60 | tr -d '\n')"
 1. Log into Dockhand
 2. Navigate to **Stacks** → **New Stack**
 3. Name: `authentik`
-4. Paste the entire `docker-compose.yml` content into the editor
+4. Paste the entire `docker compose.yml` content into the editor
 
 ### Step 3: Add Environment Variables
 
@@ -95,7 +95,7 @@ AUTHENTIK_EMAIL__FROM=authentik@yourdomain.com
 mkdir -p /opt/authentik
 cd /opt/authentik
 
-# Download or copy the docker-compose.yml file here
+# Download or copy the docker compose.yml file here
 # Then create your .env file
 ```
 
@@ -143,16 +143,16 @@ AUTHENTIK_EMAIL__FROM=authentik@yourdomain.com
 cd /opt/authentik
 
 # Pull images
-docker-compose pull
+docker compose pull
 
 # Start in background
-docker-compose up -d
+docker compose up -d
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ---
@@ -218,7 +218,7 @@ Click **Save** and wait 10-15 seconds.
 cd /opt/authentik
 
 # Check status
-docker-compose ps
+docker compose ps
 
 # Should show all 4 containers as "Up" and "healthy"
 ```
@@ -227,14 +227,14 @@ docker-compose ps
 
 ```bash
 # View all logs
-docker-compose logs
+docker compose logs
 
 # Follow logs in real-time
-docker-compose logs -f
+docker compose logs -f
 
 # Check specific service
-docker-compose logs server
-docker-compose logs postgresql
+docker compose logs server
+docker compose logs postgresql
 ```
 
 ### Check Port
@@ -261,23 +261,23 @@ curl http://localhost:9000
 cd /opt/authentik
 
 # Stop all services
-docker-compose stop
+docker compose stop
 
 # Start all services
-docker-compose start
+docker compose start
 
 # Restart all services
-docker-compose restart
+docker compose restart
 
 # Stop and remove containers (keeps data)
-docker-compose down
+docker compose down
 
 # Stop, remove containers AND volumes (deletes data)
-docker-compose down -v
+docker compose down -v
 
 # Update to latest version
-docker-compose pull
-docker-compose up -d
+docker compose pull
+docker compose up -d
 ```
 
 ---
@@ -320,7 +320,7 @@ docker run --rm -v authentik-media:/data -v $(pwd):/backup alpine tar czf /backu
 ### 502 Bad Gateway from NPM
 
 **Check:**
-1. Containers are running: `docker-compose ps`
+1. Containers are running: `docker compose ps`
 2. Port 9000 is listening: `sudo ss -tlnp | grep 9000`
 3. Correct VM IP in NPM
 4. Firewall allows traffic from NPM to VM
@@ -329,8 +329,8 @@ docker run --rm -v authentik-media:/data -v $(pwd):/backup alpine tar czf /backu
 
 **Check logs:**
 ```bash
-docker-compose logs postgresql
-docker-compose logs server
+docker compose logs postgresql
+docker compose logs server
 ```
 
 **Common issues:**
@@ -351,8 +351,8 @@ docker exec authentik-server env | grep PG_PASS
 
 **Make sure:**
 1. URL includes trailing slash: `/if/flow/initial-setup/`
-2. Containers are healthy: `docker-compose ps`
-3. No errors in logs: `docker-compose logs server`
+2. Containers are healthy: `docker compose ps`
+3. No errors in logs: `docker compose logs server`
 
 ### Email Not Sending (Fastmail)
 
@@ -403,7 +403,7 @@ After Authentik is running:
 
 If you encounter issues:
 
-1. Check logs: `docker-compose logs -f`
+1. Check logs: `docker compose logs -f`
 2. Review this troubleshooting section
 3. Search Authentik documentation
 4. Ask in Authentik Discord community
