@@ -416,5 +416,5 @@ If variables are missing, confirm `.env` exists in the same directory as `docker
 - [Authentik Integrations](https://integrations.goauthentik.io/)
 - [Authentik GitHub](https://github.com/goauthentik/authentik)
 - [Authentik Discord](https://discord.gg/jg33eMhnj6)
-- [Dockhand](https://github.com/fnsys/dockhand)
+- [Dockhand](https://github.com/Finsys/dockhand)
 - [Nginx Proxy Manager](https://nginxproxymanager.com/)
