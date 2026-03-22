@@ -467,7 +467,7 @@ If variables are missing, confirm `.env` exists in the same directory as `docker
 
 ## Security Recommendations
 
-- Never commit `.env` to version control — add `.env` to `.gitignore`
+- Never commit `.env` to version control — add `.env` to [`.gitignore`](https://github.com/variablenix/dotfiles/blob/main/common/.gitignore_global)
 - Use strong randomly generated values for `PG_PASS` and `AUTHENTIK_SECRET_KEY`
 - Serve Authentik behind HTTPS only (NPM + valid certificate)
 - Enable HSTS in NPM
