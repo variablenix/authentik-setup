@@ -1,316 +1,159 @@
-# Authentik Setup Guide
-## Cross-Compatible: Dockhand & Docker Compose CLI
+# authentik-setup
 
-This guide covers deploying Authentik using either Dockhand or docker compose CLI with the same files.
-
----
-
-## Key Improvements in This Setup
-
-✅ **Named volumes** instead of relative paths (./media → authentik-media)
-✅ **Works in both Dockhand and CLI** without modifications
-✅ **Container names** for easier management
-✅ **Default values** for optional variables
-✅ **Clear environment variable structure**
-✅ **Email configuration included**
+A self-hosted [Authentik](https://goauthentik.io/) deployment guide for Docker Compose and [Dockhand](https://github.com/fnsys/dockhand), with Nginx Proxy Manager reverse proxy, Fastmail SMTP, and AWS Identity Center compatibility.
 
 ---
 
-## Prerequisites
+## Repository Contents
 
-- Ubuntu 24.04 VM with Docker installed
-- Dockhand (if using GUI method) OR terminal access for CLI method
-- Nginx Proxy Manager with wildcard SSL certificate
-- Chosen subdomain (e.g., auth.yourdomain.com)
+| File | Purpose |
+|------|---------|
+| [docker-compose.yml](docker-compose.yml) | Production-ready compose file with Redis, resource limits, Prometheus metrics, and AWS Identity Center CSRF origins |
+| [env.template](env.template) | Environment variable template — copy to `.env` and fill in required secrets; includes pre-commented email examples for Fastmail, Gmail, Office 365, and SendGrid |
+| [SETUP.md](SETUP.md) | Full step-by-step deployment guide |
 
 ---
 
-## Method 1: Deploy with Dockhand (GUI)
+## What's Included
 
-### Step 1: Prepare Environment Variables
+- **PostgreSQL 16** + **Redis** — Authentik's required backing services
+- **Named volumes** and bind-mount alternatives for persistent data
+- **Resource limits** on all services (memory reservations + caps)
+- **Prometheus metrics** — server on `:9300`, worker on `:9301`
+- **CSRF trusted origins** pre-configured for AWS Identity Center compatibility
+- **Email configuration** examples — Fastmail, Gmail, Office 365, SendGrid
+- Dual deployment methods: **Dockhand GUI** and **Docker Compose CLI**
 
-On your Ubuntu VM, generate the required secrets:
+---
+
+## Quick Start
+
+### 1. Get the files
+
+Clone this repo or download the files directly:
 
 ```bash
-# Generate PostgreSQL password
+git clone https://github.com/variablenix/authentik-setup.git
+cd authentik-setup
+```
+
+Or download the upstream Authentik compose file and use this repo's version as a reference:
+
+```bash
+wget https://goauthentik.io/docker-compose.yml
+```
+
+### 2. Generate secrets
+
+```bash
+# PostgreSQL password
 echo "PG_PASS=$(openssl rand -base64 36 | tr -d '\n')"
 
-# Generate Authentik secret key
+# Authentik secret key
 echo "AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60 | tr -d '\n')"
 ```
 
-**Copy these values** - you'll need them when creating the stack in Dockhand.
-
-### Step 2: Create Stack in Dockhand
-
-1. Log into Dockhand
-2. Navigate to **Stacks** → **New Stack**
-3. Name: `authentik`
-4. Paste the entire `docker compose.yml` content into the editor
-
-### Step 3: Add Environment Variables
-
-Add your environment variables in the stack configuration:
-
-**Required Variables:**
-```
-PG_PASS=<paste-your-generated-password>
-AUTHENTIK_SECRET_KEY=<paste-your-generated-secret>
-```
-
-**Optional Variables:**
-```
-AUTHENTIK_ERROR_REPORTING__ENABLED=true
-PG_USER=authentik
-PG_DB=authentik
-```
-
-**Optional Email Variables (if configuring email):**
-```
-AUTHENTIK_EMAIL__HOST=smtp.fastmail.com
-AUTHENTIK_EMAIL__PORT=587
-AUTHENTIK_EMAIL__USERNAME=your-email@fastmail.com
-AUTHENTIK_EMAIL__PASSWORD=your-fastmail-app-password
-AUTHENTIK_EMAIL__USE_TLS=true
-AUTHENTIK_EMAIL__FROM=authentik@yourdomain.com
-```
-
-> **Fastmail note:** Use an app-specific password generated in Fastmail under **Settings → Privacy & Security → Connected Apps & API Tokens**. Do not use your main account password.
-
-### Step 4: Deploy
-
-1. Click **Deploy** (or equivalent in Dockhand)
-2. Wait 2-3 minutes for containers to start
-3. Check container logs for any errors
-4. Verify all 4 containers are running and healthy
-
----
-
-## Method 2: Deploy with Docker Compose CLI
-
-### Step 1: Prepare Files
+### 3. Create your .env file
 
 ```bash
-# Create directory
-mkdir -p /opt/authentik
-cd /opt/authentik
-
-# Download or copy the docker compose.yml file here
-# Then create your .env file
-```
-
-### Step 2: Create .env File
-
-```bash
-cd /opt/authentik
-
-# Generate and save secrets
-echo "PG_PASS=$(openssl rand -base64 36 | tr -d '\n')" > .env
-echo "AUTHENTIK_SECRET_KEY=$(openssl rand -base64 60 | tr -d '\n')" >> .env
-
-# Add optional settings
-echo "AUTHENTIK_ERROR_REPORTING__ENABLED=true" >> .env
-echo "PG_USER=authentik" >> .env
-echo "PG_DB=authentik" >> .env
-
-# Verify .env file
-cat .env
-```
-
-### Step 3: Optional Email Configuration (Fastmail)
-
-If you want email functionality, add to your .env:
-
-```bash
+cp env.template .env
+# Edit .env and paste in the generated values
 nano .env
 ```
 
-Add these lines:
-```
-AUTHENTIK_EMAIL__HOST=smtp.fastmail.com
-AUTHENTIK_EMAIL__PORT=587
-AUTHENTIK_EMAIL__USERNAME=your-email@fastmail.com
-AUTHENTIK_EMAIL__PASSWORD=your-fastmail-app-password
-AUTHENTIK_EMAIL__USE_TLS=true
-AUTHENTIK_EMAIL__FROM=authentik@yourdomain.com
-```
-
-> **Fastmail note:** Generate an app-specific password under **Settings → Privacy & Security → Connected Apps & API Tokens**. Use that value for `AUTHENTIK_EMAIL__PASSWORD`, not your main account password. Port 587 with STARTTLS is recommended; port 465 with SSL/TLS is also supported — set `AUTHENTIK_EMAIL__USE_SSL=true` and `AUTHENTIK_EMAIL__PORT=465` if you prefer that.
-
-### Step 4: Deploy
+### 4. Deploy
 
 ```bash
-cd /opt/authentik
-
-# Pull images
-docker compose pull
-
-# Start in background
-docker compose up -d
-
-# Check status
-docker compose ps
-
-# View logs
-docker compose logs -f
-```
-
----
-
-## Configure Nginx Proxy Manager (Both Methods)
-
-### Step 1: Add Proxy Host
-
-1. Log into NPM
-2. Go to **Proxy Hosts** → **Add Proxy Host**
-
-### Step 2: Details Tab
-
-- **Domain Names:** `auth.yourdomain.com`
-- **Scheme:** `http`
-- **Forward Hostname/IP:** `<your-ubuntu-vm-ip>`
-- **Forward Port:** `9000`
-- ✅ **Cache Assets**
-- ✅ **Block Common Exploits**
-- ✅ **Websockets Support**
-
-### Step 3: SSL Tab
-
-- **SSL Certificate:** Select your wildcard certificate
-- ✅ **Force SSL**
-- ✅ **HTTP/2 Support**
-- ✅ **HSTS Enabled**
-
-### Step 4: Save
-
-Click **Save** and wait 10-15 seconds.
-
----
-
-## Initial Authentik Setup
-
-1. Navigate to: `https://auth.yourdomain.com/if/flow/initial-setup/`
-
-   ⚠️ **Important:** Include the trailing slash `/`
-
-2. Set password for the `akadmin` user
-
-3. Log in with:
-   - Username: `akadmin`
-   - Password: what you just set
-
-4. Go to **Admin Interface** → **System** → **Settings**
-   - Set **Authentik Domain:** `https://auth.yourdomain.com`
-   - Click **Save**
-
----
-
-## Verification Commands
-
-### Check Container Status
-
-**Dockhand Method:**
-- View container status and health in the Dockhand UI
-- Access container logs directly from the stack view
-
-**CLI Method:**
-```bash
-cd /opt/authentik
-
-# Check status
-docker compose ps
-
-# Should show all 4 containers as "Up" and "healthy"
-```
-
-### Check Logs
-
-```bash
-# View all logs
-docker compose logs
-
-# Follow logs in real-time
-docker compose logs -f
-
-# Check specific service
-docker compose logs server
-docker compose logs postgresql
-```
-
-### Check Port
-
-```bash
-# Verify port 9000 is listening
-sudo ss -tlnp | grep 9000
-
-# Test locally
-curl http://localhost:9000
-```
-
----
-
-## Container Management
-
-### Using Dockhand:
-- Start/Stop/Restart: Use the Dockhand stack/container controls
-- View logs: Navigate to the container and open its log view
-- Console access: Use the exec/console feature if available in your Dockhand version
-
-### Using CLI:
-```bash
-cd /opt/authentik
-
-# Stop all services
-docker compose stop
-
-# Start all services
-docker compose start
-
-# Restart all services
-docker compose restart
-
-# Stop and remove containers (keeps data)
-docker compose down
-
-# Stop, remove containers AND volumes (deletes data)
-docker compose down -v
-
-# Update to latest version
 docker compose pull
 docker compose up -d
+docker compose ps
 ```
+
+### 5. Initial setup
+
+Navigate to:
+
+```
+https://auth.yourdomain.com/if/flow/initial-setup/
+```
+
+> ⚠️ The trailing slash is required.
+
+Set a password for `akadmin`, then go to **Admin Interface → System → Settings** and set the **Authentik Domain** to your full URL.
 
 ---
 
-## Backup Important Data
+## AWS Identity Center
 
-### Backup Secrets
+To use Authentik as a SAML/OIDC identity provider with AWS Identity Center, `AUTHENTIK_CSRF_TRUSTED_ORIGINS` must include your AWS SSO sign-in endpoint. This is set in both the `server` and `worker` services in `docker-compose.yml`:
 
-```bash
-# Your .env file contains critical secrets
-sudo cp /opt/authentik/.env /opt/authentik/.env.backup
-
-# Store securely - consider encrypting
+```yaml
+AUTHENTIK_CSRF_TRUSTED_ORIGINS: "https://auth.yourdomain.com,https://us-east-1.sso.signin.aws"
 ```
 
-### Backup Database
+Replace `us-east-1` with the AWS region your Identity Center instance is configured in. Without this entry, SAML and OIDC flows initiated from the AWS console will fail with CSRF verification errors.
+
+---
+
+## Nginx Proxy Manager
+
+Point NPM at the Authentik server container:
+
+| Setting | Value |
+|---------|-------|
+| Scheme | `http` |
+| Forward Hostname/IP | your VM's LAN IP |
+| Forward Port | `9000` |
+| Websockets Support | ✅ enabled |
+| Force SSL | ✅ enabled |
+| HTTP/2 Support | ✅ enabled |
+| HSTS | ✅ enabled |
+
+---
+
+## Prometheus Metrics
+
+The compose file exposes Authentik metrics on two ports for scraping:
+
+| Port | Service | Metric path |
+|------|---------|-------------|
+| `9300` | server | `/metrics` |
+| `9301` | worker | `/metrics` |
+
+Add both to your Prometheus scrape config to get full coverage of Authentik's internals.
+
+---
+
+## Backup
+
+### Secrets
 
 ```bash
-# Backup PostgreSQL database
+cp .env .env.backup
+# Store this securely — it contains your database password and secret key
+```
+
+### Database
+
+```bash
+# Backup
 docker exec authentik-postgresql pg_dump -U authentik authentik > authentik-backup-$(date +%Y%m%d).sql
 
-# Restore if needed
+# Restore
 cat authentik-backup-YYYYMMDD.sql | docker exec -i authentik-postgresql psql -U authentik -d authentik
 ```
 
-### Backup Volumes
+### Volumes
 
 ```bash
-# List volumes
+# List Authentik volumes
 docker volume ls | grep authentik
 
-# Backup a volume (example)
-docker run --rm -v authentik-media:/data -v $(pwd):/backup alpine tar czf /backup/authentik-media-backup.tar.gz -C /data .
+# Backup media volume
+docker run --rm \
+  -v authentik-media:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/authentik-media-$(date +%Y%m%d).tar.gz -C /data .
 ```
 
 ---
@@ -318,99 +161,68 @@ docker run --rm -v authentik-media:/data -v $(pwd):/backup alpine tar czf /backu
 ## Troubleshooting
 
 ### 502 Bad Gateway from NPM
+1. Confirm containers are running: `docker compose ps`
+2. Check port 9000 is listening: `ss -tlnp | grep 9000`
+3. Verify the VM IP in NPM is correct
+4. Check NPM logs for connection refused vs timeout — they point to different problems
 
-**Check:**
-1. Containers are running: `docker compose ps`
-2. Port 9000 is listening: `sudo ss -tlnp | grep 9000`
-3. Correct VM IP in NPM
-4. Firewall allows traffic from NPM to VM
+### Broadcaster / AWS CSRF errors
+- Ensure `AUTHENTIK_CSRF_TRUSTED_ORIGINS` is set in **both** `server` and `worker`
+- The value must match the exact origin URL including scheme (`https://`)
+- Restart both containers after any change: `docker compose restart server worker`
 
-### Containers Not Starting
-
-**Check logs:**
+### Containers not starting
 ```bash
 docker compose logs postgresql
 docker compose logs server
 ```
+Common causes: missing `PG_PASS` or `AUTHENTIK_SECRET_KEY`, port 9000/9443 already in use, Redis not healthy before server starts.
 
-**Common issues:**
-- Missing environment variables
-- Invalid PG_PASS or AUTHENTIK_SECRET_KEY
-- Port conflicts (9000 or 9443 already in use)
-
-### Environment Variables Not Working
-
-**Verify they're set:**
+### Environment variables not applied
 ```bash
-# Check in running container
 docker exec authentik-server env | grep AUTHENTIK
-docker exec authentik-server env | grep PG_PASS
+docker exec authentik-server env | grep PG
 ```
 
-### Can't Access Initial Setup
+### Can't reach initial setup page
+- Confirm URL has trailing slash: `/if/flow/initial-setup/`
+- Wait 60+ seconds after first start — Authentik (PHP-FPM + Liquidsoap workers) takes time to initialize
+- Check: `docker compose logs -f server`
 
-**Make sure:**
-1. URL includes trailing slash: `/if/flow/initial-setup/`
-2. Containers are healthy: `docker compose ps`
-3. No errors in logs: `docker compose logs server`
-
-### Email Not Sending (Fastmail)
-
-**Check:**
-1. App-specific password is used — not your main Fastmail password
-2. `AUTHENTIK_EMAIL__USERNAME` matches your full Fastmail address (e.g., `user@fastmail.com`)
-3. Port 587 with `USE_TLS=true` is set (STARTTLS), or port 465 with `USE_SSL=true`
-4. Test from the Authentik Admin Interface under **System → Email**
+### Email not sending
+- Fastmail requires an **app-specific password** — not your account password
+- Generate at: **Settings → Privacy & Security → Connected Apps & API Tokens**
+- Port 587 + `USE_TLS=true` (STARTTLS) or port 465 + `USE_SSL=true` (SSL/TLS)
+- Test under **Admin Interface → System → Email**
 
 ---
 
-## Security Recommendations
+## Security
 
-1. ✅ **Backup your .env file** securely
-2. ✅ **Use strong passwords** for PG_PASS
-3. ✅ **Never commit .env to git** - add to .gitignore
-4. ✅ **Limit access** to the VM
-5. ✅ **Use HTTPS** (via NPM) for all access
-6. ✅ **Enable HSTS** in NPM
-7. ✅ **Regular backups** of database and config
-8. ✅ **Keep Authentik updated** regularly
+- Never commit `.env` to version control — add it to `.gitignore`
+- Use a strong randomly generated `PG_PASS` and `AUTHENTIK_SECRET_KEY`
+- Serve Authentik behind HTTPS only (NPM + valid SSL cert)
+- Enable HSTS in NPM
+- Back up `.env` and the database on a schedule
+- Keep the Authentik image version pinned in `.env` (`AUTHENTIK_TAG`) and update intentionally
 
 ---
 
 ## Next Steps
 
-After Authentik is running:
-
-1. **Configure Applications** - Add apps for SSO/SAML
-2. **Set up Users & Groups** - Create your user directory
-3. **Configure Flows** - Customize authentication flows
-4. **Add Sources** - Connect LDAP, OAuth providers, etc.
-5. **Set up Outposts** - For proxy/LDAP functionality
-6. **Test Email** - Send a test email from Admin Interface → System → Email
+1. **Applications** — add SAML/OIDC apps for SSO
+2. **Users & Groups** — build your directory
+3. **Flows** — customize enrollment, authentication, and recovery flows
+4. **Sources** — connect LDAP, Google, GitHub, or other OAuth providers
+5. **Outposts** — deploy the proxy or LDAP outpost for non-SAML apps
+6. **AWS Identity Center** — configure SAML federation with the correct `CSRF_TRUSTED_ORIGINS` region
 
 ---
 
-## Additional Resources
+## Resources
 
-- Official Documentation: https://docs.goauthentik.io/
-- Integrations: https://integrations.goauthentik.io/
-- Community Discord: https://discord.gg/jg33eMhnj6
-- GitHub: https://github.com/goauthentik/authentik
-
----
-
-## Support
-
-If you encounter issues:
-
-1. Check logs: `docker compose logs -f`
-2. Review this troubleshooting section
-3. Search Authentik documentation
-4. Ask in Authentik Discord community
-5. Check GitHub issues
-
----
-
-**Setup Complete!** 🎉
-
-Your Authentik instance should now be accessible at `https://auth.yourdomain.com`
+- [Authentik Documentation](https://docs.goauthentik.io/)
+- [Authentik Integrations](https://integrations.goauthentik.io/)
+- [Authentik GitHub](https://github.com/goauthentik/authentik)
+- [Authentik Discord](https://discord.gg/jg33eMhnj6)
+- [Dockhand](https://github.com/fnsys/dockhand)
